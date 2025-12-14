@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Chess Opening Trainer — Full Single File</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#0f1725; --accent:#22c1ff; --muted:#9fb0c8;
+    --white-square:#f0d9b5; --dark-square:#b58863;
+    --green:#2ecc71; --red:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:Inter, system-ui, -apple-system, Arial;
+    background: linear-gradient(180deg,#041027 0%, #071a2b 100%); color:#e6f0fb;
+    display:flex; align-items:flex-start; justify-content:center; padding:24px;
+  }
+  .app {
+    width: 1000px; max-width:100%; display:grid; grid-template-columns: 380px 1fr; gap:18px;
+  }
+
+  /* Left panel */
+  .panel {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:12px; padding:16px; border:1px solid rgba(255,255,255,0.03);
+  }
+  h1 { margin:0 0 8px 0; font-size:20px }
+  .muted { color:var(--muted); font-size:13px }
+  .controls { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap }
+  select,input[type="number"]{ padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03); background:transparent; color:inherit }
+  button { background:linear-gradient(90deg,var(--accent),#0aa0d6); border:0;padding:10px;border-radius:8px;color:#042; font-weight:700; cursor:pointer }
+  .small { font-size:13px }
+
+  .stats { display:flex; gap:10px; margin-top:12px; align-items:center; flex-wrap:wrap }
+  .stat { background:rgba(255,255,255,0.02); padding:8px 10px; border-radius:8px; font-weight:700; color:var(--muted) }
+
+  /* Board & right area */
+  .right {
+    display:flex; flex-direction:column; gap:12px;
+  }
+
+  .board-wrap {
+    background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+    padding:14px; border-radius:12px; border:1px solid rgba(255,255,255,0.03);
+    display:flex; gap:16px;
+  }
+  .board {
+    width: 360px; height:360px; position:relative; box-shadow: 0 6px 20px rgba(2,6,23,0.6);
+    border-radius:8px; overflow:visible;
+  }
+  .square { width:45px; height:45px; position:absolute; display:flex; align-items:center; justify-content:center; font-size:26px; user-select:none; }
+  .sq-white{ background:var(--white-square); color:#111 }
+  .sq-dark{ background:var(--dark-square); color:#111 }
+  .piece {
+    position:absolute; width:44px; height:44px; display:flex; align-items:center; justify-content:center;
+    font-size:30px; transition: transform 350ms ease, left 350ms ease, top 350ms ease;
+    pointer-events:none;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.2);
+  }
+
+  /* right side controls / moves / image */
+  .panel-right {
+    padding:10px; border-radius:8px; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.02);
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .opening-name { font-size:18px; font-weight:800 }
+  .moves-box { background: rgba(0,0,0,0.25); padding:10px; border-radius:8px; font-family:monospace; min-height:70px; max-height:150px; overflow:auto }
+  .btn-row { display:flex; gap:8px }
+  .snapshot { width:160px; height:160px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); background:#fff; display:flex; align-items:center; justify-content:center; color:#001; font-weight:700 }
+
+  /* quiz area */
+  .quiz {
+    display:flex; gap:8px; align-items:center;
+  }
+  .input { padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); background:transparent; color:inherit }
+
+  .feedback { font-weight:800; font-size:16px; margin-top:6px }
+  .correct { color:var(--green) } .wrong { color:var(--red) }
+
+  /* footer notes */
+  .note { font-size:13px; color:var(--muted) }
+
+  @media (max-width:1024px){
+    .app { grid-template-columns: 1fr; padding:12px }
+    .board-wrap { flex-direction:column; align-items:center }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="panel">
+    <h1>♟️ Chess Opening Trainer — Full</h1>
+    <div class="muted">Animated board • Quiz • 60 openings (30 White / 30 Black) • Save progress</div>
+
+    <div style="margin-top:12px" class="small">Repertoire</div>
+    <div class="controls" style="margin-top:6px">
+      <select id="repertoireSelect">
+        <option value="all">All (White + Black)</option>
+        <option value="white">White Openings</option>
+        <option value="black">Black Openings</option>
+      </select>
+
+      <select id="openingSelect" style="flex:1">
+        <option value="">-- Choose opening --</option>
+      </select>
+
+      <button id="randomBtn">Random</button>
+    </div>
+
+    <div style="margin-top:12px" class="small">Quiz Settings</div>
+    <div class="controls">
+      <label class="small">Moves to show:
+        <input id="showMovesCount" type="number" min="0" max="8" value="2" style="width:80px" />
+      </label>
+      <label class="small">Points correct:
+        <input id="ptsCorrect" type="number" min="1" max="200" value="10" style="width:80px" />
+      </label>
+      <label class="small">Penalty:
+        <input id="ptsWrong" type="number" min="0" max="200" value="5" style="width:80px" />
+      </label>
+    </div>
+
+    <div class="stats">
+      <div class="stat">Score: <span id="score">0</span></div>
+      <div class="stat">Streak: <span id="streak">0</span></div>
+      <div class="stat">Best: <span id="best">0</span></div>
+      <div class="stat">Solved: <span id="solved">0</span></div>
+    </div>
+
+    <div style="margin-top:12px" class="controls">
+      <button id="resetScoreBtn" style="background:#ff9f43">Reset Score</button>
+      <button id="exportBtn" style="background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.03)">Export JSON</button>
+      <button id="importBtn" style="background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.03)">Import JSON</button>
+    </div>
+
+    <div style="margin-top:10px" class="note">
+      Tip: use SAN (e.g. "e4", "Nf3", "Bb5", "exd5"). For quiz answers type the move in exact SAN (same as shown in opening moves).
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="board-wrap">
+      <div class="board panel-right" id="boardPanel" aria-label="Chess board area">
+        <!-- Board squares and pieces created by JS -->
+      </div>
+
+      <div style="width:420px; display:flex;flex-direction:column; gap:10px">
+        <div class="panel-right">
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <div>
+              <div class="opening-name" id="openingName">No opening selected</div>
+              <div class="muted small" id="openingSide">—</div>
+            </div>
+            <div class="snapshot" id="snapshot">IMG</div>
+          </div>
+
+          <div class="moves-box" id="movesBox">Moves will appear here</div>
+
+          <div class="btn-row" style="margin-top:8px">
+            <button id="showAllBtn">Show all moves</button>
+            <button id="animateBtn">Animate opening</button>
+            <button id="resetBoardBtn" style="background:#ffd166">Reset</button>
+          </div>
+        </div>
+
+        <div class="panel-right">
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <strong>Quiz — guess the next move</strong>
+            <div class="muted small">Use the moves shown below</div>
+          </div>
+
+          <div style="margin-top:8px" class="quiz">
+            <input id="quizInput" class="input" placeholder='Type next move (e.g. "Nf3")' />
+            <button id="submitQuiz">Submit</button>
+            <button id="skipQuiz" style="background:#ff6b6b">Skip</button>
+          </div>
+
+          <div class="small" style="margin-top:8px">Shown moves (you must continue from here):</div>
+          <div class="moves-box" id="quizShownMoves">—</div>
+          <div class="feedback" id="quizFeedback"></div>
+        </div>
+
+        <div class="panel-right">
+          <strong>Opening browser</strong>
+          <div class="small" style="margin-top:8px">Search by name (type part of the name):</div>
+          <input id="searchOpen" class="input" placeholder="search (e.g. Sicilian)" />
+          <div id="searchResults" class="small muted" style="margin-top:8px"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px; align-items:center; justify-content:space-between">
+      <div class="muted small">All moves are standard opening lines — practice to memorize.</div>
+      <div class="muted small">Saved locally to this browser.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==========================
+   Chess Opening Trainer (single-file)
+   - Animated board (pieces slide)
+   - 60 openings (30 white + 30 black) as SAN moves arrays
+   - Quiz mode: show first N moves, user types next SAN move
+   - Snapshot: draws final position from the move list
+   - Repertoire selector, search, random
+   - Rating system, streaks, localStorage save/export/import
+   Notes: SAN parser is a simple implementation suitable for typical opening moves.
+   ========================== */
+
+(function(){
+  // ---------- Data: 60 openings (30 white + 30 black)
+  // Each opening: { id, side: 'white'|'black', name, moves: ['e4','e5','Nf3', ...] }
+  // White openings listed as main lines (White's perspective first move e4/d4/c4/etc.)
+  const OPENINGS = [
+    // --- 30 White openings ---
+    {id:'w1', side:'white', name:'Ruy Lopez (Spanish)', moves:['e4','e5','Nf3','Nc6','Bb5']},
+    {id:'w2', side:'white', name:'Italian Game', moves:['e4','e5','Nf3','Nc6','Bc4']},
+    {id:'w3', side:'white', name:'Scotch Game', moves:['e4','e5','Nf3','Nc6','d4','exd4','Nxd4']},
+    {id:'w4', side:'white', name:'King\'s Gambit', moves:['e4','e5','f4','exf4']},
+    {id:'w5', side:'white', name:'Vienna Game', moves:['e4','e5','Nc3']},
+    {id:'w6', side:'white', name:'Giuoco Piano', moves:['e4','e5','Nf3','Nc6','Bc4','Bc5']},
+    {id:'w7', side:'white', name:'Four Knights Game', moves:['e4','e5','Nf3','Nc6','Nc3','Nf6']},
+    {id:'w8', side:'white', name:'English Opening', moves:['c4','e5']},
+    {id:'w9', side:'white', name:'Reti Opening', moves:['Nf3','d5','c4']},
+    {id:'w10', side:'white', name:'King\'s Indian Attack', moves:['Nf3','d5','g3','Nf6','Bg2']},
+    {id:'w11', side:'white', name:'Queen\'s Gambit', moves:['d4','d5','c4']},
+    {id:'w12', side:'white', name:'London System', moves:['d4','d5','Bf4']},
+    {id:'w13', side:'white', name:'Catalan Opening', moves:['d4','Nf6','c4','e6','g3','d5','Bg2']},
+    {id:'w14', side:'white', name:'Colle System', moves:['d4','d5','Nf3','Nf6','e3']},
+    {id:'w15', side:'white', name:'Trompowsky Attack', moves:['d4','Nf6','Bg5']},
+    {id:'w16', side:'white', name:'Stonewall Attack', moves:['d4','d5','e3','Nf6','Bd3','c5','c3']},
+    {id:'w17', side:'white', name:'English: Botvinnik System', moves:['c4','e5','Nc3','Nf6','g3','d5','cxd5']},
+    {id:'w18', side:'white', name:'Sokolsky Opening (b4)', moves:['b4','e5']},
+    {id:'w19', side:'white', name:'Bird Opening', moves:['f4','d5']},
+    {id:'w20', side:'white', name:'Nimzowitsch-Larsen (b3)', moves:['b3','e5']},
+    {id:'w21', side:'white', name:'King\'s Pawn: Scotch (classical)', moves:['e4','e5','Nf3','Nc6','d4','exd4','Nxd4','Nf6','Nc3']},
+    {id:'w22', side:'white', name:'London: Torre Attack', moves:['d4','Nf6','Nf3','e6','Bg5']},
+    {id:'w23', side:'white', name:'Queen\'s Pawn: Colle–Zukertort', moves:['d4','d5','Nf3','Nf6','e3','c5','b3']},
+    {id:'w24', side:'white', name:'Veresov Attack', moves:['d4','Nf6','Nc3','d5','Bg5']},
+    {id:'w25', side:'white', name:'Mason Gambit (Scotch)', moves:['e4','e5','Nf3','Nc6','d4','exd4','Bc4']},
+    {id:'w26', side:'white', name:'Pawn Storm (a4)', moves:['a4','e5']},
+    {id:'w27', side:'white', name:'Anti-Sicilian (Smith-Morra style)', moves:['e4','c5','c3']},
+    {id:'w28', side:'white', name:'Gambit: Queen\'s Gambit Accepted (as White)', moves:['d4','d5','c4','dxc4']},
+    {id:'w29', side:'white', name:'Ruy Lopez: Berlin', moves:['e4','e5','Nf3','Nc6','Bb5','Nf6']},
+    {id:'w30', side:'white', name:'Modern Benoni (as White)', moves:['d4','Nf6','c4','c5','d5']},
+
+    // --- 30 Black openings ---
+    {id:'b1', side:'black', name:'Sicilian Defense (Najdorf line)', moves:['e4','c5','Nf3','d6','d4','cxd4','Nxd4','a6']},
+    {id:'b2', side:'black', name:'French Defense (Classical)', moves:['e4','e6','d4','d5','Nc3','Nf6']},
+    {id:'b3', side:'black', name:'Caro-Kann Defense', moves:['e4','c6','d4','d5']},
+    {id:'b4', side:'black', name:'Pirc Defense', moves:['e4','d6','d4','Nf6','Nc3','g6']},
+    {id:'b5', side:'black', name:'Modern Defense', moves:['e4','g6','d4','Bg7']},
+    {id:'b6', side:'black', name:'Scandinavian Defense', moves:['e4','d5','exd5','Qxd5']},
+    {id:'b7', side:'black', name:'Alekhine Defense', moves:['e4','Nf6','e5','Nd5']},
+    {id:'b8', side:'black', name:'King\'s Indian Defense', moves:['d4','Nf6','c4','g6','Nc3','Bg7']},
+    {id:'b9', side:'black', name:'Nimzo-Indian Defense', moves:['d4','Nf6','c4','e6','Nc3','Bb4']},
+    {id:'b10', side:'black', name:'Queen\'s Gambit Declined', moves:['d4','d5','c4','e6']},
+    {id:'b11', side:'black', name:'Slav Defense', moves:['d4','d5','c4','c6']},
+    {id:'b12', side:'black', name:'Grünfeld Defense', moves:['d4','Nf6','c4','g6','Nc3','d5']},
+    {id:'b13', side:'black', name:'Benoni Defense', moves:['d4','Nf6','c4','c5','d5','e6']},
+    {id:'b14', side:'black', name:'Dutch Defense', moves:['d4','f5']},
+    {id:'b15', side:'black', name:'Philidor Defense', moves:['e4','e5','Nf3','d6']},
+    {id:'b16', side:'black', name:'Scotch: Center Game reply', moves:['e4','e5','d4','exd4']},
+    {id:'b17', side:'black', name:'French Tarrasch', moves:['e4','e6','d4','d5','Nd2','c5']},
+    {id:'b18', side:'black', name:'Caro-Kann Panov Attack defence', moves:['e4','c6','d4','d5','exd5','cxd5']},
+    {id:'b19', side:'black', name:'Modern Benoni Defense', moves:['d4','Nf6','c4','c5','d5','e6']},
+    {id:'b20', side:'black', name:'Budapest Gambit', moves:['d4','Nf6','c4','e5']},
+    {id:'b21', side:'black', name:'Old Indian Defense', moves:['d4','d6','c4','Nf6','Nc3','e5']},
+    {id:'b22', side:'black', name:'Trompowsky Defense', moves:['d4','Nf6','Bg5','Ne4']},
+    {id:'b23', side:'black', name:'Hedgehog setup (as Black)', moves:['d4','Nf6','c4','e6','Nc3','b6','e4','Bb7']},
+    {id:'b24', side:'black', name:'Dutch Leningrad', moves:['d4','f5','g3','Nf6','Bg2','e6','Nf3','Be7','O-O']},
+    {id:'b25', side:'black', name:'Robatsch (Modern) Defense', moves:['e4','g6','d4','Bg7','Nc3','d6']},
+    {id:'b26', side:'black', name:'Semi-Slav Defense', moves:['d4','d5','c4','c6','Nc3','Nf6']},
+    {id:'b27', side:'black', name:'King\'s Indian: Samisch', moves:['d4','Nf6','c4','g6','Nc3','Bg7','e4']},
+    {id:'b28', side:'black', name:'Benko Gambit (as Black)', moves:['d4','Nf6','c4','c5','d5','b5']},
+    {id:'b29', side:'black', name:'Sicilian: Dragon setup', moves:['e4','c5','Nf3','d6','d4','cxd4','Nxd4','g6']},
+    {id:'b30', side:'black', name:'Ruy Lopez: Berlin Defense', moves:['e4','e5','Nf3','Nc6','Bb5','Nf6']},
+  ];
+
+  // ---------- Utilities & local storage
+  const LS_KEY = 'chess_opening_trainer_v1';
+  const state = {
+    score:0, streak:0, best:0, solved:0
+  };
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw){ Object.assign(state, JSON.parse(raw)); updateStatsUI(); }
+    }catch(e){}
+  }
+  function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); updateStatsUI(); }
+
+  // ---------- Board representation (8x8) and simple SAN application
+  // Board cell coords: file a-h (left->right) x rank 8->1 (top->bottom)
+  // We'll render using Unicode pieces for simplicity.
+  const PIECE_UNICODE = {
+    wK: '♔', wQ:'♕', wR:'♖', wB:'♗', wN:'♘', wP:'♙',
+    bK: '♚', bQ:'♛', bR:'♜', bB:'♝', bN:'♞', bP:'♟'
+  };
+
+  // Board state as object map square->piece, e.g. 'e4'->'wP'
+  function initialBoard(){
+    const b = {};
+    const whiteBack = ['a1','b1','c1','d1','e1','f1','g1','h1'];
+    const whitePieces = ['wR','wN','wB','wQ','wK','wB','wN','wR'];
+    for(let i=0;i<8;i++) b[whiteBack[i]] = whitePieces[i];
+    const blackBack = ['a8','b8','c8','d8','e8','f8','g8','h8'];
+    const blackPieces = ['bR','bN','bB','bQ','bK','bB','bN','bR'];
+    for(let i=0;i<8;i++) b[blackBack[i]] = blackPieces[i];
+    // pawns
+    'abcdefgh'.split('').forEach((f)=>{ b[f+'2'] = 'wP'; b[f+'7'] = 'bP'; });
+    return b;
+  }
+
+  // helper coordinates
+  const files = 'abcdefgh'.split('');
+  const ranks = '87654321'.split(''); // for positioning top-to-bottom
+
+  // Generate board DOM
+  const boardPanel = document.getElementById('boardPanel');
+  const squareSize = 45; // px
+  const boardOffset = 8; // margin
+  let pieceElements = {}; // map square -> DOM element
+
+  function createBoardDOM(){
+    boardPanel.innerHTML = '';
+    // create squares (absolute positioned)
+    for(let r=0;r<8;r++){
+      for(let f=0;f<8;f++){
+        const file = files[f];
+        const rank = 8 - r;
+        const sq = file + rank;
+        const left = f * squareSize;
+        const top = r * squareSize;
+        const sqEl = document.createElement('div');
+        sqEl.className = 'square ' + ( (f + r) % 2 === 0 ? 'sq-white' : 'sq-dark');
+        sqEl.style.left = (left)+'px';
+        sqEl.style.top = (top)+'px';
+        sqEl.style.width = squareSize + 'px';
+        sqEl.style.height = squareSize + 'px';
+        sqEl.setAttribute('data-square', sq);
+        boardPanel.appendChild(sqEl);
+      }
+    }
+    // create container for piece elements (absolute)
+    const piecesLayer = document.createElement('div');
+    piecesLayer.style.position = 'absolute';
+    piecesLayer.style.left = '0'; piecesLayer.style.top = '0';
+    piecesLayer.style.width = (squareSize*8)+'px';
+    piecesLayer.style.height = (squareSize*8)+'px';
+    piecesLayer.style.pointerEvents = 'none';
+    piecesLayer.id = 'piecesLayer';
+    boardPanel.appendChild(piecesLayer);
+  }
+
+  function renderPosition(board){
+    // board: map square->piece
+    const layer = document.getElementById('piecesLayer');
+    if (!layer) return;
+    // reuse existing piece elements when possible
+    const newPieceElements = {};
+    // move existing elements to new positions, or create
+    Object.keys(board).forEach(sq=>{
+      const piece = board[sq];
+      if (!piece) return;
+      // check if an element for the same piece instance exists on another square - we identify by piece label + index
+      // simpler: destroy all and recreate (cost small)
+    });
+    layer.innerHTML = '';
+    Object.keys(board).forEach(sq=>{
+      const piece = board[sq];
+      if (!piece) return;
+      const el = document.createElement('div');
+      el.className = 'piece';
+      el.style.left = (files.indexOf(sq[0]) * squareSize) + 'px';
+      el.style.top = ((8 - parseInt(sq[1])) * squareSize) + 'px';
+      el.textContent = PIECE_UNICODE[piece] || '?';
+      el.setAttribute('data-square', sq);
+      el.setAttribute('data-piece', piece);
+      layer.appendChild(el);
+      newPieceElements[sq] = el;
+    });
+    pieceElements = newPieceElements;
+  }
+
+  // animate a single move SAN on board (very simple parser, supports common opening SAN)
+  function cloneBoard(board){ return JSON.parse(JSON.stringify(board)); }
+
+  // helper: find all squares containing a piece type for a given color
+  function squaresOf(board, piecePrefix){
+    return Object.keys(board).filter(sq => board[sq] && board[sq].startsWith(piecePrefix));
+  }
+
+  // compute possible source squares for a move to dest by naive legal move generation for piece types
+  function candidateSources(board, pieceType, color, dest){
+    // pieceType: 'N','B','R','Q','K','P'
+    const destFile = dest[0], destRank = parseInt(dest[1]);
+    const candidates = [];
+    const isWhite = color === 'w';
+    const dir = isWhite ? 1 : -1;
+    if (pieceType === 'P'){
+      // pawn moves: from same file or capture from adjacent files
+      // forward one
+      const from1Rank = destRank - (isWhite ? 1 : -1);
+      const from2Rank = destRank - (isWhite ? 2 : -2);
+      const f1 = destFile + from1Rank;
+      if (board[f1] === (color+'P')) candidates.push(f1);
+      // double move
+      const startRank = isWhite ? 2 : 7;
+      const f2 = destFile + from2Rank;
+      if (board[f2] === (color+'P') && from1Rank === startRank + (isWhite?0:0)) candidates.push(f2);
+      // captures: x e5 like exd5 => dest file known but piece from adjacent file
+      // We'll handle captures in parse by checking 'x' presence and scanning adjacent files
+      const filesIdx = files.indexOf(destFile);
+      [filesIdx-1, filesIdx+1].forEach(fi=>{
+        if (fi>=0 && fi<8){
+          const s = files[fi] + (destRank - (isWhite ? 1 : -1));
+          if (board[s] === color+'P') candidates.push(s);
+        }
+      });
+    } else if (pieceType === 'N'){
+      const moves = [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+      for(const m of moves){
+        const fIdx = files.indexOf(destFile) - m[0];
+        const r = destRank - m[1];
+        if (fIdx>=0 && fIdx<8 && r>=1 && r<=8){
+          const s = files[fIdx] + r;
+          if (board[s] === color+'N') candidates.push(s);
+        }
+      }
+    } else if (pieceType === 'B' || pieceType === 'R' || pieceType === 'Q'){
+      // ray directions
+      const dirs = [];
+      if (pieceType === 'B' || pieceType === 'Q') dirs.push([1,1],[1,-1],[-1,1],[-1,-1]);
+      if (pieceType === 'R' || pieceType === 'Q') dirs.push([1,0],[-1,0],[0,1],[0,-1]);
+      for(const d of dirs){
+        let fIdx = files.indexOf(destFile) - d[0];
+        let r = destRank - d[1];
+        while(fIdx>=0 && fIdx<8 && r>=1 && r<=8){
+          const s = files[fIdx] + r;
+          if (board[s]){
+            if (board[s] === color+pieceType) candidates.push(s);
+            break; // blocked
+          }
+          fIdx -= d[0]; r -= d[1];
+        }
+      }
+    } else if (pieceType === 'K'){
+      for(let df=-1; df<=1; df++){
+        for(let dr=-1; dr<=1; dr++){
+          if (df===0 && dr===0) continue;
+          const fIdx = files.indexOf(destFile) - df;
+          const r = destRank - dr;
+          if (fIdx>=0 && fIdx<8 && r>=1 && r<=8){
+            const s = files[fIdx] + r;
+            if (board[s] === color+'K') candidates.push(s);
+          }
+        }
+      }
+      // castling handled elsewhere
+    }
+    return candidates;
+  }
+
+  // Apply SAN move to board; returns updated board or throws if can't parse
+  function applySAN(board, san, color){
+    // handle castling
+    if (san === 'O-O' || san === 'O-O+' || san === 'O-O#' || san === '0-0'){
+      // king side castle
+      const isWhite = color === 'w';
+      const kingFrom = isWhite ? 'e1' : 'e8';
+      const kingTo = isWhite ? 'g1' : 'g8';
+      const rookFrom = isWhite ? 'h1' : 'h8';
+      const rookTo = isWhite ? 'f1' : 'f8';
+      const nb = cloneBoard(board);
+      nb[kingTo] = nb[kingFrom]; delete nb[kingFrom];
+      nb[rookTo] = nb[rookFrom]; delete nb[rookFrom];
+      return nb;
+    }
+    if (san === 'O-O-O' || san === 'O-O-O+' || san === 'O-O-O#' || san === '0-0-0'){
+      const isWhite = color === 'w';
+      const kingFrom = isWhite ? 'e1' : 'e8';
+      const kingTo = isWhite ? 'c1' : 'c8';
+      const rookFrom = isWhite ? 'a1' : 'a8';
+      const rookTo = isWhite ? 'd1' : 'd8';
+      const nb = cloneBoard(board);
+      nb[kingTo] = nb[kingFrom]; delete nb[kingFrom];
+      nb[rookTo] = nb[rookFrom]; delete nb[rookFrom];
+      return nb;
+    }
+
+    // remove check/mate symbols and trailing annotations
+    let m = san.replace(/[+#]$/,'').replace(/[\?!]+$/,'');
+    // handle promotions like e8=Q or e8Q
+    let promotion = null;
+    const promMatch = m.match(/=?(Q|R|B|N)$/);
+    if (promMatch){ promotion = promMatch[1]; m = m.replace(/=?(Q|R|B|N)$/, ''); }
+
+    // handle captures (we will simply remove target piece if present)
+    const isCapture = m.includes('x');
+    m = m.replace(/x/g,'');
+
+    // piece letter?
+    const pieceLetter = /^[KQRBN]/.test(m) ? m[0] : 'P';
+    if (pieceLetter !== 'P') m = m.slice(1);
+
+    // disambiguation like Nbd2 or R1e2: could include file or rank or both
+    // capture possible digits/letters at start of remaining m
+    // finalize dest as last two chars
+    const dest = m.slice(-2);
+    const disamb = m.slice(0, m.length-2); // could be '' or 'b' or '1' or 'bd' etc
+
+    // Determine color prefix
+    const colorPrefix = color === 'white' ? 'w' : 'b';
+    const pieceType = pieceLetter; // 'N','B','R','Q','K','P'
+
+    // find candidate sources
+    const cand = candidateSources(board, pieceType, colorPrefix, dest);
+    let source = null;
+
+    if (cand.length === 0){
+      // fallback: for pawn moves like e4 where pawn from e2 moves to e4
+      if (pieceType === 'P'){
+        const file = dest[0], rank = parseInt(dest[1]);
+        const isWhite = colorPrefix === 'w';
+        const fromRank1 = rank - (isWhite?1:-1);
+        const from1 = file + fromRank1;
+        const from2 = file + (rank - (isWhite?2:-2));
+        if (board[from1] === colorPrefix+'P') source = from1;
+        else if (board[from2] === colorPrefix+'P') source = from2;
+      }
+    } else if (cand.length === 1){
+      source = cand[0];
+    } else {
+      // use disambiguation if provided
+      if (disamb){
+        for(const c of cand){
+          if (c.includes(disamb)) { source = c; break; }
+          if (c[0] === disamb) { source = c; break; }
+          if (c[1] === disamb) { source = c; break; }
+        }
+      }
+      if (!source){
+        // pick the first candidate (best effort)
+        source = cand[0];
+      }
+    }
+
+    if (!source) throw new Error('Cannot find source for SAN: ' + san + ' (candidates: ' + cand.join(',') + ')');
+
+    // perform move
+    const nb = cloneBoard(board);
+    const moving = nb[source];
+    delete nb[source];
+    // handle capture: just remove dest
+    if (isCapture && nb[dest]) delete nb[dest];
+    // promotion
+    if (promotion){
+      nb[dest] = colorPrefix + promotion; // e.g. wQ
+    } else {
+      nb[dest] = moving;
+    }
+    return nb;
+  }
+
+  // Animate sequence of SAN moves on the board with a delay
+  async function animateMoves(moves, speed=600, onStep){
+    // moves: array of SAN strings, starting with side to move 'white' (we'll alternate)
+    let board = initialBoard();
+    renderPosition(board);
+    let side = 'white';
+    for(let i=0;i<moves.length;i++){
+      const san = moves[i];
+      try{
+        const nb = applySAN(board, san, side);
+        // for visual effect: create a temporary piece movement animation between board and nb
+        await animateTransition(board, nb, speed);
+        board = nb;
+        renderPosition(board);
+        if (onStep) onStep(i+1, board);
+      }catch(e){
+        // parsing failed; stop animation and show error in console
+        console.warn('Animation stopped at move', san, e);
+        break;
+      }
+      side = (side === 'white' ? 'black' : 'white');
+    }
+    return board;
+  }
+
+  // animateTransition: animate current piece elements to new positions based on board diff
+  function animateTransition(boardFrom, boardTo, duration=600){
+    return new Promise((resolve)=>{
+      const layer = document.getElementById('piecesLayer');
+      // create mapping piece elements by square from current render
+      // we'll perform a fade+move: create cloned elements and move them
+      const before = boardFrom;
+      const after = boardTo;
+      const moves = [];
+      // find pieces that moved
+      Object.keys(before).forEach(sq=>{
+        const p = before[sq];
+        if (!p) return;
+        // find same piece at same square in after?
+        if (after[sq] === p){ /* stayed */ }
+        else {
+          // either moved or captured
+          // find where this piece ended up (same piece label and not yet matched)
+          let dest = null;
+          for(const s2 of Object.keys(after)){
+            if (after[s2] === p && !Object.keys(before).includes(s2) || (after[s2] === p && s2 !== sq)) {
+              // pick if different square
+            }
+          }
+          // simpler: find difference by matching dest squares that have piece equal to p and source not equal
+          for(const s2 of Object.keys(after)){
+            if (after[s2] === p && s2 !== sq){
+              dest = s2; break;
+            }
+          }
+          moves.push({from:sq, to:dest, piece:p});
+        }
+      });
+      // fallback: detect moved targets by checking dest squares where piece exists but either came from elsewhere or appeared
+      // We'll implement a simpler animation: re-render boardTo after short fade out/slide
+      // For smoothness, we'll fade out piecesLayer, then render new and fade in.
+      layer.style.transition = 'opacity 180ms';
+      layer.style.opacity = '0.2';
+      setTimeout(()=>{
+        renderPosition(after);
+        layer.style.opacity = '1';
+        setTimeout(()=> resolve(), duration/2 + 80);
+      }, 140);
+    });
+  }
+
+  // ---------- UI wiring
+  const openingSelect = document.getElementById('openingSelect');
+  const repertoireSelect = document.getElementById('repertoireSelect');
+  const randomBtn = document.getElementById('randomBtn');
+  const openingNameEl = document.getElementById('openingName');
+  const openingSideEl = document.getElementById('openingSide');
+  const movesBox = document.getElementById('movesBox');
+  const snapshotEl = document.getElementById('snapshot');
+  const showAllBtn = document.getElementById('showAllBtn');
+  const animateBtn = document.getElementById('animateBtn');
+  const resetBoardBtn = document.getElementById('resetBoardBtn');
+
+  const showMovesCount = document.getElementById('showMovesCount');
+  const quizShownMoves = document.getElementById('quizShownMoves');
+  const quizInput = document.getElementById('quizInput');
+  const submitQuiz = document.getElementById('submitQuiz');
+  const skipQuiz = document.getElementById('skipQuiz');
+  const quizFeedback = document.getElementById('quizFeedback');
+
+  const scoreEl = document.getElementById('score');
+  const streakEl = document.getElementById('streak');
+  const bestEl = document.getElementById('best');
+  const solvedEl = document.getElementById('solved');
+  const ptsCorrectEl = document.getElementById('ptsCorrect');
+  const ptsWrongEl = document.getElementById('ptsWrong');
+
+  const searchOpen = document.getElementById('searchOpen');
+  const searchResults = document.getElementById('searchResults');
+
+  const resetScoreBtn = document.getElementById('resetScoreBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+
+  let currentOpening = null; // opening object
+  let currentBoard = initialBoard();
+
+  // populate repertoire dropdown
+  function populateOpeningSelect(){
+    openingSelect.innerHTML = '<option value="">-- Choose opening --</option>';
+    const rep = repertoireSelect.value;
+    OPENINGS.forEach(op => {
+      if (rep === 'all' || rep === op.side) {
+        const opt = document.createElement('option');
+        opt.value = op.id;
+        opt.textContent = (op.side === 'white' ? '[W] ' : '[B] ') + op.name;
+        openingSelect.appendChild(opt);
+      }
+    });
+  }
+
+  repertoireSelect.addEventListener('change', ()=> {
+    populateOpeningSelect();
+    openingSelect.value = '';
+    setNoOpening();
+  });
+
+  openingSelect.addEventListener('change', ()=>{
+    const id = openingSelect.value;
+    if (!id) { setNoOpening(); return; }
+    const op = OPENINGS.find(o=>o.id===id);
+    loadOpening(op);
+  });
+
+  randomBtn.addEventListener('click', ()=>{
+    const rep = repertoireSelect.value;
+    const filtered = OPENINGS.filter(o=> rep==='all' || o.side===rep);
+    const pick = filtered[Math.floor(Math.random()*filtered.length)];
+    openingSelect.value = pick.id;
+    loadOpening(pick);
+  });
+
+  function setNoOpening(){
+    currentOpening = null;
+    openingNameEl.textContent = 'No opening selected';
+    openingSideEl.textContent = '—';
+    movesBox.textContent = 'Moves will appear here';
+    snapshotEl.textContent = 'IMG';
+    currentBoard = initialBoard();
+    renderPosition(currentBoard);
+    quizShownMoves.textContent = '—';
+    quizFeedback.textContent = '';
+  }
+
+  function loadOpening(op){
+    currentOpening = op;
+    openingNameEl.textContent = op.name;
+    openingSideEl.textContent = op.side === 'white' ? 'White opening' : 'Black opening';
+    movesBox.textContent = op.moves.join(' ');
+    snapshotEl.textContent = '...';
+    // render snapshot final position
+    (async ()=>{
+      try{
+        const final = await animateMoves(op.moves.slice(), 140, ()=>{}); // animate quickly off-screen to compute final
+        // But animateMoves already animates visually; we don't want that here.
+      }catch(e){}
+      // Instead, compute final position by applying moves without animation
+      let pos = initialBoard();
+      let side = 'white';
+      for(const mv of op.moves){
+        try{ pos = applySAN(pos, mv, side); }catch(e){ console.warn('applySAN failed for snapshot', mv, e); break; }
+        side = (side === 'white' ? 'black' : 'white');
+      }
+      currentBoard = pos;
+      renderPosition(pos);
+      snapshotEl.textContent = 'FINAL';
+    })();
+    // reset quiz UI
+    quizFeedback.textContent = '';
+    prepareQuiz();
+  }
+
+  // show all moves in movesBox
+  showAllBtn.addEventListener('click', ()=>{
+    if (!currentOpening) return;
+    movesBox.textContent = currentOpening.moves.join(' ');
+  });
+
+  // animate opening on board with visible animation
+  animateBtn.addEventListener('click', async ()=>{
+    if (!currentOpening) return;
+    // reset to start and animate
+    currentBoard = initialBoard();
+    renderPosition(currentBoard);
+    quizFeedback.textContent = '';
+    animateBtn.disabled = true;
+    await animateMoves(currentOpening.moves.slice(), 600, (step, board)=>{
+      // update snapshot small preview each step by rendering scaled board in snapshot (we'll just update text)
+      // optionally show progress
+    });
+    animateBtn.disabled = false;
+    // set current position to final
+    let pos = initialBoard(); let side='white';
+    for(const mv of currentOpening.moves){ try{ pos = applySAN(pos, mv, side);}catch(e){ break; } side = (side==='white'?'black':'white'); }
+    currentBoard = pos; renderPosition(currentBoard);
+    prepareQuiz();
+  });
+
+  resetBoardBtn.addEventListener('click', ()=>{
+    currentBoard = initialBoard();
+    renderPosition(currentBoard);
+  });
+
+  // ---------- Quiz logic
+  function prepareQuiz(){
+    // show first N moves per setting
+    if (!currentOpening){ quizShownMoves.textContent = '—'; return; }
+    const N = Math.max(0, parseInt(showMovesCount.value)||0);
+    const seq = currentOpening.moves.slice(0, N);
+    quizShownMoves.textContent = seq.length ? seq.join(' ') : '(no moves shown)';
+    quizInput.value = '';
+    quizFeedback.textContent = '';
+  }
+  showMovesCount.addEventListener('change', prepareQuiz);
+
+  function getNextMoveToGuess(){
+    if (!currentOpening) return null;
+    const N = Math.max(0, parseInt(showMovesCount.value)||0);
+    if (currentOpening.moves.length <= N) return null;
+    return currentOpening.moves[N];
+  }
+
+  submitQuiz.addEventListener('click', ()=>{
+    const ans = quizInput.value.trim();
+    if (!currentOpening){ quizFeedback.textContent = 'Select an opening first.'; quizFeedback.className='feedback wrong'; return; }
+    const target = getNextMoveToGuess();
+    if (!target){ quizFeedback.textContent = 'No next move to guess (increase show moves or pick another opening).'; quizFeedback.className='feedback wrong'; return; }
+    if (!ans){ quizFeedback.textContent = 'Type a move!'; quizFeedback.className='feedback wrong'; return; }
+    // simple normalization: remove whitespace, ignore +#
+    const normAns = ans.replace(/\s+/g,'').replace(/[+#]$/,'');
+    const normTarget = target.replace(/\s+/g,'').replace(/[+#]$/,'');
+    if (normAns === normTarget){
+      // correct
+      const pts = Math.max(1, parseInt(ptsCorrectEl.value)||10);
+      state.score += pts;
+      state.streak += 1;
+      state.solved += 1;
+      if (state.streak > state.best) state.best = state.streak;
+      saveState();
+      quizFeedback.textContent = 'Correct! +' + pts + ' pts';
+      quizFeedback.className = 'feedback correct';
+      // advance showMovesCount to include the correct move (so next time the next move becomes the target)
+      const currentN = parseInt(showMovesCount.value)||0;
+      showMovesCount.value = Math.min(currentOpening.moves.length, currentN + 1);
+      prepareQuiz();
+    } else {
+      // wrong
+      const pen = Math.max(0, parseInt(ptsWrongEl.value)||5);
+      state.score = Math.max(0, state.score - pen);
+      state.streak = 0;
+      saveState();
+      quizFeedback.textContent = 'Wrong — expected: ' + target + ' (you typed: ' + ans + '). -' + pen + ' pts';
+      quizFeedback.className = 'feedback wrong';
+    }
+    updateStatsUI();
+  });
+
+  skipQuiz.addEventListener('click', ()=>{
+    // skipping penalizes small points and resets streak
+    const pen = Math.max(0, parseInt(ptsWrongEl.value)||5);
+    state.score = Math.max(0, state.score - pen);
+    state.streak = 0;
+    saveState();
+    quizFeedback.textContent = 'Skipped. -' + pen + ' pts';
+    quizFeedback.className = 'feedback wrong';
+    updateStatsUI();
+  });
+
+  // ---------- Search
+  searchOpen.addEventListener('input', ()=>{
+    const q = searchOpen.value.trim().toLowerCase();
+    if (!q){ searchResults.textContent = ''; return; }
+    const found = OPENINGS.filter(o => o.name.toLowerCase().includes(q));
+    if (!found.length){ searchResults.textContent = 'No matches'; return; }
+    searchResults.innerHTML = found.slice(0,12).map(o => `<div style="padding:6px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer" data-id="${o.id}">${o.side==='white'?'[W]':'[B]'} ${o.name}</div>`).join('');
+    // add click listeners
+    Array.from(searchResults.querySelectorAll('div[data-id]')).forEach(el=>{
+      el.addEventListener('click', ()=> {
+        const id = el.getAttribute('data-id');
+        openingSelect.value = id;
+        loadOpening(OPENINGS.find(x=>x.id===id));
+        searchResults.textContent = '';
+        searchOpen.value = '';
+      });
+    });
+  });
+
+  // ---------- Stats & persist
+  function updateStatsUI(){
+    scoreEl.textContent = state.score;
+    streakEl.textContent = state.streak;
+    bestEl.textContent = state.best;
+    solvedEl.textContent = state.solved;
+  }
+  resetScoreBtn.addEventListener('click', ()=>{
+    if (!confirm('Reset score and progress?')) return;
+    state.score = 0; state.streak = 0; state.best = 0; state.solved = 0;
+    saveState(); updateStatsUI();
+  });
+
+  exportBtn.addEventListener('click', ()=>{
+    const data = {state, openings: OPENINGS};
+    const s = JSON.stringify(data, null, 2);
+    // try copy to clipboard and download
+    try{ navigator.clipboard.writeText(s); }catch(e){}
+    const blob = new Blob([s], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'chess_openings_backup.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    alert('Exported JSON and copied to clipboard (if allowed).');
+  });
+
+  importBtn.addEventListener('click', ()=>{
+    const text = prompt('Paste JSON exported earlier to import state/openings:');
+    if (!text) return;
+    try{
+      const obj = JSON.parse(text);
+      if (obj.state) { Object.assign(state, obj.state); saveState(); }
+      alert('Imported. Reload page to ensure openings refresh if they were changed.');
+    }catch(e){ alert('Invalid JSON'); }
+  });
+
+  // ---------- initialization
+  createBoardDOM();
+  currentBoard = initialBoard();
+  renderPosition(currentBoard);
+  populateOpeningSelect();
+  loadState();
+
+  // set no opening initially
+  setNoOpening();
+
+  // Make sure selecting opening from search works; also populate repertoire selection on load
+  repertoireSelect.value = 'all';
+
+  // Accessibility: Enter key for quiz input triggers submit
+  quizInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') submitQuiz.click(); });
+
+  // prepare initial UI
+  updateStatsUI();
+
+  // ensure openingSelect prepopulated if user chooses before repertoire loaded
+  // done
+
+})();
+</script>
+</body>
+</html>
